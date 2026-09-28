@@ -1,3 +1,3 @@
-export interface IUnitOfWork<TTransaction> {
-  execute<T>(work: (transaction: TTransaction) => Promise<T>): Promise<T>;
+export interface IUnitOfWork<TTransactionClient> {
+  execute<T>(work: (transaction: TTransactionClient) => Promise<T>): Promise<T>;
 }

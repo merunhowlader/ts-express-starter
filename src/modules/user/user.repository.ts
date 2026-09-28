@@ -1,4 +1,4 @@
-import type { User } from '../../generated/prisma/client.js';
+import type { User, UserProfile } from '../../generated/prisma/client.js';
 
 import type { PrismaDatabaseClient } from '../../infrastructure/database/prisma/prisma.types.js';
 
@@ -28,4 +28,18 @@ export class UserRepository implements IUserRepository {
       data,
     });
   }
+
+  public async createProfile(data: {
+    userId: number;
+    bio?: string | null;
+    avatarUrl?: string | null;
+  }): Promise<UserProfile> {
+    return this.db.userProfile.create({
+      data,
+    });
+  }
 }
+
+export const createUserRepository = (db: PrismaDatabaseClient): IUserRepository => {
+  return new UserRepository(db);
+};
