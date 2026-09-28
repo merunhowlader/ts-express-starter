@@ -10,4 +10,10 @@ export const createUserSchema = z.object({
   }),
 });
 
+export const getUserByIdSchema = z.object({
+  params: z.object({
+    id: z.uuid('Invalid user ID.'),
+  }),
+});
+
 export type CreateUserRequest = z.infer<typeof createUserSchema>;

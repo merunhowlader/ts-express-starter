@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from 'express';
+import type { RequestHandler } from 'express';
 
 import { HTTP_STATUS } from '../constants/http.constants.js';
 
@@ -8,8 +8,8 @@ import { ERROR_CODES } from '../errors/error.codes.js';
 
 import type { ITokenService } from '../interfaces/token.interface.js';
 
-export const createAuthMiddleware = (tokenService: ITokenService) => {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+export const createAuthMiddleware = (tokenService: ITokenService): RequestHandler => {
+  return (req, _res, next): void => {
     const authorization = req.headers.authorization;
 
     if (!authorization) {
@@ -41,14 +41,8 @@ export const createAuthMiddleware = (tokenService: ITokenService) => {
     try {
       const payload = tokenService.verifyAccessToken(token);
 
-      const userId = Number(payload.sub);
-
-      if (!Number.isInteger(userId)) {
-        throw new Error('Invalid user ID in access token.');
-      }
-
       req.user = {
-        id: userId,
+        id: payload.sub,
         role: payload.role,
       };
 

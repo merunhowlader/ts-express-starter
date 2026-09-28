@@ -1,14 +1,14 @@
 import type { User, UserProfile } from '../../generated/prisma/client.js';
 
 export interface IUserRepository {
-  findById(id: number): Promise<User | null>;
+  findById(id: string): Promise<User | null>;
 
   findByEmail(email: string): Promise<User | null>;
 
   create(data: { name: string; email: string; passwordHash: string }): Promise<User>;
 
   createProfile(data: {
-    userId: number;
+    userId: string;
     bio?: string | null;
     avatarUrl?: string | null;
   }): Promise<UserProfile>;

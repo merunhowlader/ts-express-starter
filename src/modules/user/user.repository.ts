@@ -7,19 +7,15 @@ import type { IUserRepository } from './user.interface.js';
 export class UserRepository implements IUserRepository {
   public constructor(private readonly db: PrismaDatabaseClient) {}
 
-  public async findById(id: number): Promise<User | null> {
+  public async findById(id: string): Promise<User | null> {
     return this.db.user.findUnique({
-      where: {
-        id,
-      },
+      where: { id },
     });
   }
 
   public async findByEmail(email: string): Promise<User | null> {
     return this.db.user.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
     });
   }
 
@@ -30,7 +26,7 @@ export class UserRepository implements IUserRepository {
   }
 
   public async createProfile(data: {
-    userId: number;
+    userId: string;
     bio?: string | null;
     avatarUrl?: string | null;
   }): Promise<UserProfile> {

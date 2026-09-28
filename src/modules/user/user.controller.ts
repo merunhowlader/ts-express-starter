@@ -24,7 +24,7 @@ export class UserController {
     }>,
     res: Response,
   ): Promise<void> => {
-    const id = Number(req.params.id);
+    const id = req.params.id;
 
     const user = await this.userService.getUserById(id);
 

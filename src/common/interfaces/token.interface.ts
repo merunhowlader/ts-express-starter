@@ -5,11 +5,7 @@ export interface AccessTokenPayload {
 }
 
 export interface ITokenService {
-  generateAccessToken(
-    payload: AccessTokenPayload,
-  ): string;
+  generateAccessToken(payload: AccessTokenPayload): string;
 
-  verifyAccessToken(
-    token: string,
-  ): AccessTokenPayload;
+  verifyAccessToken(token: string): AccessTokenPayload;
 }

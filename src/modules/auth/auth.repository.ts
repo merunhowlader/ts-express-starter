@@ -1,5 +1,7 @@
 import type { RefreshToken } from '../../generated/prisma/client.js';
+
 import type { PrismaDatabaseClient } from '../../infrastructure/database/prisma/prisma.types.js';
+
 import type { IAuthRepository } from './auth.interface.js';
 
 export class AuthRepository implements IAuthRepository {
@@ -7,7 +9,7 @@ export class AuthRepository implements IAuthRepository {
 
   public async createRefreshToken(data: {
     tokenHash: string;
-    userId: number;
+    userId: string;
     expiresAt: Date;
   }): Promise<RefreshToken> {
     return this.db.refreshToken.create({

@@ -3,7 +3,7 @@ import type { RefreshToken } from '../../generated/prisma/client.js';
 export interface IAuthRepository {
   createRefreshToken(data: {
     tokenHash: string;
-    userId: number;
+    userId: string;
     expiresAt: Date;
   }): Promise<RefreshToken>;
 

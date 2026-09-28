@@ -1,21 +1,17 @@
 import type { Request, Response } from 'express';
 
-import { HTTP_STATUS } from '../../common/constants/http.constants.js';
-
-import type { LoginRequest } from './auth.schema.js';
-
-import type { IAuthService } from './auth.service.js';
-import {
-  REFRESH_TOKEN_COOKIE_NAME,
-  REFRESH_TOKEN_COOKIE_PATH,
-} from '../../common/constants/auth.constants.js';
-import { AppError } from '../../common/errors/app.error.js';
-import { ERROR_CODES } from '../../common/errors/error.codes.js';
-
 import {
   CSRF_TOKEN_COOKIE_NAME,
   CSRF_TOKEN_COOKIE_PATH,
+  REFRESH_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_COOKIE_PATH,
 } from '../../common/constants/auth.constants.js';
+
+import { HTTP_STATUS } from '../../common/constants/http.constants.js';
+
+import type { IAuthService } from './auth.service.js';
+
+import type { LoginCredentials } from './auth.types.js';
 
 export class AuthController {
   public constructor(
@@ -23,18 +19,12 @@ export class AuthController {
     private readonly isProduction: boolean,
   ) {}
 
-  public login = async (
-    req: Request<Record<string, never>, unknown, LoginRequest['body']>,
-    res: Response,
-  ): Promise<void> => {
-    const result = await this.authService.login(req.body);
+  public login = async (req: Request, res: Response): Promise<void> => {
+    const credentials = req.body as LoginCredentials;
 
-    res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
-      httpOnly: true,
-      secure: this.isProduction,
-      sameSite: 'lax',
-      path: REFRESH_TOKEN_COOKIE_PATH,
-    });
+    const result = await this.authService.login(credentials);
+
+    this.setRefreshTokenCookie(res, result.refreshToken);
 
     res.status(HTTP_STATUS.OK).json({
       success: true,
@@ -48,22 +38,21 @@ export class AuthController {
   public refresh = async (req: Request, res: Response): Promise<void> => {
     const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE_NAME];
 
-    if (typeof refreshToken !== 'string' || refreshToken.length === 0) {
-      throw new AppError(
-        ERROR_CODES.UNAUTHORIZED,
-        'Refresh token is required.',
-        HTTP_STATUS.UNAUTHORIZED,
-      );
+    if (typeof refreshToken !== 'string') {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Refresh token is required.',
+        },
+      });
+
+      return;
     }
 
     const result = await this.authService.refresh(refreshToken);
 
-    res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
-      httpOnly: true,
-      secure: this.isProduction,
-      sameSite: 'lax',
-      path: REFRESH_TOKEN_COOKIE_PATH,
-    });
+    this.setRefreshTokenCookie(res, result.refreshToken);
 
     res.status(HTTP_STATUS.OK).json({
       success: true,
@@ -72,8 +61,8 @@ export class AuthController {
       },
     });
   };
+
   public getCsrf = async (_req: Request, res: Response): Promise<void> => {
-    console.log('hhhhhhhhhhhhhhhhhhhhhhhhhh');
     const result = await this.authService.getCsrfToken();
 
     res.cookie(CSRF_TOKEN_COOKIE_NAME, result.csrfToken, {
@@ -88,4 +77,37 @@ export class AuthController {
       data: result,
     });
   };
+
+  public logout = async (req: Request, res: Response): Promise<void> => {
+    const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE_NAME];
+
+    if (typeof refreshToken === 'string') {
+      await this.authService.logout(refreshToken);
+    }
+
+    this.clearRefreshTokenCookie(res);
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      data: null,
+    });
+  };
+
+  private setRefreshTokenCookie(res: Response, refreshToken: string): void {
+    res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: 'lax',
+      path: REFRESH_TOKEN_COOKIE_PATH,
+    });
+  }
+
+  private clearRefreshTokenCookie(res: Response): void {
+    res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: 'lax',
+      path: REFRESH_TOKEN_COOKIE_PATH,
+    });
+  }
 }

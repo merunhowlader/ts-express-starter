@@ -6,6 +6,8 @@ import { ERROR_CODES } from '../../common/errors/error.codes.js';
 
 import type { ITokenService } from '../../common/interfaces/token.interface.js';
 
+import { generateCsrfToken } from '../../common/utils/csrf.js';
+
 import {
   generateRefreshToken,
   getRefreshTokenExpiry,
@@ -13,8 +15,6 @@ import {
 } from '../../common/utils/refresh-token.js';
 
 import { verifyPassword } from '../../common/utils/password.js';
-
-import type { IUserRepository } from '../user/user.interface.js';
 
 import type { IAuthRepository } from './auth.interface.js';
 
@@ -25,13 +25,17 @@ import type {
   LoginResult,
   RefreshResult,
 } from './auth.types.js';
-import { generateCsrfToken } from '../../common/utils/csrf.js';
+
+import type { IUserRepository } from '../user/user.interface.js';
 
 export interface IAuthService {
   login(credentials: LoginCredentials): Promise<LoginResult>;
 
   refresh(refreshToken: string): Promise<RefreshResult>;
+
   getCsrfToken(): Promise<CsrfResult>;
+
+  logout(refreshToken: string): Promise<void>;
 }
 
 export class AuthService implements IAuthService {
@@ -80,17 +84,21 @@ export class AuthService implements IAuthService {
     };
 
     const accessToken = this.tokenService.generateAccessToken({
-      sub: String(user.id),
+      sub: user.id,
       role: user.role,
       type: 'access',
     });
 
     const refreshToken = generateRefreshToken();
 
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    const expiresAt = getRefreshTokenExpiry(this.refreshTokenExpiresIn);
+
     await this.authRepository.createRefreshToken({
-      tokenHash: hashRefreshToken(refreshToken),
+      tokenHash,
       userId: user.id,
-      expiresAt: getRefreshTokenExpiry(this.refreshTokenExpiresIn),
+      expiresAt,
     });
 
     return {
@@ -116,7 +124,7 @@ export class AuthService implements IAuthService {
     if (storedToken.revokedAt !== null) {
       throw new AppError(
         ERROR_CODES.UNAUTHORIZED,
-        'Refresh token has been revoked.',
+        'Refresh token has already been revoked.',
         HTTP_STATUS.UNAUTHORIZED,
       );
     }
@@ -134,7 +142,7 @@ export class AuthService implements IAuthService {
     if (user === null) {
       throw new AppError(
         ERROR_CODES.UNAUTHORIZED,
-        'User account no longer exists.',
+        'User account was not found.',
         HTTP_STATUS.UNAUTHORIZED,
       );
     }
@@ -147,7 +155,7 @@ export class AuthService implements IAuthService {
       );
     }
 
-    const newAccessToken = this.tokenService.generateAccessToken({
+    const accessToken = this.tokenService.generateAccessToken({
       sub: String(user.id),
       role: user.role,
       type: 'access',
@@ -155,22 +163,43 @@ export class AuthService implements IAuthService {
 
     const newRefreshToken = generateRefreshToken();
 
+    const newTokenHash = hashRefreshToken(newRefreshToken);
+
+    const newExpiresAt = getRefreshTokenExpiry(this.refreshTokenExpiresIn);
+
     await this.authRepository.revokeRefreshToken(storedToken.id);
 
     await this.authRepository.createRefreshToken({
-      tokenHash: hashRefreshToken(newRefreshToken),
+      tokenHash: newTokenHash,
       userId: user.id,
-      expiresAt: getRefreshTokenExpiry(this.refreshTokenExpiresIn),
+      expiresAt: newExpiresAt,
     });
 
     return {
-      accessToken: newAccessToken,
+      accessToken,
       refreshToken: newRefreshToken,
     };
   }
+
   public async getCsrfToken(): Promise<CsrfResult> {
     return {
       csrfToken: generateCsrfToken(),
     };
+  }
+
+  public async logout(refreshToken: string): Promise<void> {
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    const storedToken = await this.authRepository.findRefreshToken(tokenHash);
+
+    if (storedToken === null) {
+      return;
+    }
+
+    if (storedToken.revokedAt !== null) {
+      return;
+    }
+
+    await this.authRepository.revokeRefreshToken(storedToken.id);
   }
 }

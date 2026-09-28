@@ -24,28 +24,42 @@ enum UserStatus {
 }
 
 model User {
-  id           Int        @id @default(autoincrement())
-  email        String     @unique
-  name         String
-  passwordHash String
-  role         UserRole   @default(USER)
-  status       UserStatus @default(ACTIVE)
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  passwordHash  String
+  role          UserRole       @default(USER)
+  status        UserStatus     @default(ACTIVE)
 
   profile       UserProfile?
   refreshTokens RefreshToken[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([status])
   @@index([role])
   @@map("users")
 }
 
+model UserProfile {
+  id        Int      @id @default(autoincrement())
+  userId    String   @unique
+  bio       String?
+  avatarUrl String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
 model RefreshToken {
   id        String   @id @default(cuid())
   tokenHash String   @unique
-  userId    Int
+  userId    String
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime @default(now())
@@ -55,18 +69,4 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("refresh_tokens")
-}
-
-model UserProfile {
-  id        Int     @id @default(autoincrement())
-  userId    Int     @unique
-  bio       String?
-  avatarUrl String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("user_profiles")
 }

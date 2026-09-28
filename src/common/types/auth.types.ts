@@ -1,4 +1,4 @@
 export interface AuthenticatedRequestUser {
-  id: number;
+  id: string;
   role: string;
 }

@@ -1,19 +1,32 @@
 import { Router } from 'express';
 
-import healthRouter from '../modules/health/health.route.js';
-
-import { authService, userService, isProduction } from '../app/container.js';
+import {
+  authMiddleware,
+  authService,
+  isProduction,
+  userService,
+} from '../app/container.js';
 
 import { createAuthRouter } from '../modules/auth/auth.route.js';
 
 import { createUserRouter } from '../modules/user/user.route.js';
 
-const router: Router = Router();
+export const apiRouter:Router = Router();
 
-router.use('/health', healthRouter);
+apiRouter.use(
+  '/auth',
+  createAuthRouter(
+    authService,
+    isProduction,
+  ),
+);
 
-router.use('/users', createUserRouter(userService));
+apiRouter.use(
+  '/users',
+  createUserRouter(
+    userService,
+    authMiddleware,
+  ),
+);
 
-router.use('/auth', createAuthRouter(authService, isProduction));
-
-export default router;
+export default apiRouter;
