@@ -13,6 +13,7 @@ import { AuthService } from '../modules/auth/auth.service.js';
 
 import { UserRepository } from '../modules/user/user.repository.js';
 import { UserService } from '../modules/user/user.service.js';
+import { GoogleOAuthProvider } from '../infrastructure/auth/oauth/google-oauth.provider.js';
 
 const config = loadConfig();
 
@@ -29,10 +30,15 @@ const tokenService = new JwtTokenService(config.jwt.accessSecret, config.jwt.acc
 export const authMiddleware: RequestHandler = createAuthMiddleware(tokenService);
 
 export const userService = new UserService(userRepository, unitOfWork);
-
+const googleOAuthProvider = new GoogleOAuthProvider(
+  config.google.clientId,
+  config.google.clientSecret,
+  config.google.redirectUri,
+);
 export const authService = new AuthService(
   userRepository,
   authRepository,
   tokenService,
   config.jwt.refreshExpiresIn,
+  googleOAuthProvider,
 );

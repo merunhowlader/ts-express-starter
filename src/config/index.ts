@@ -9,6 +9,11 @@ export type AppConfig = {
     accessExpiresIn: string;
     refreshExpiresIn: string;
   };
+  google: {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+  };
 };
 
 export function loadConfig(): AppConfig {
@@ -22,6 +27,11 @@ export function loadConfig(): AppConfig {
       accessSecret: env.JWT_ACCESS_SECRET,
       accessExpiresIn: env.JWT_ACCESS_EXPIRES_IN,
       refreshExpiresIn: env.JWT_REFRESH_EXPIRES_IN,
+    },
+    google: {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      redirectUri: env.GOOGLE_REDIRECT_URI,
     },
   };
 }

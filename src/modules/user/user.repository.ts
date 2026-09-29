@@ -19,7 +19,11 @@ export class UserRepository implements IUserRepository {
     });
   }
 
-  public async create(data: { name: string; email: string; passwordHash: string }): Promise<User> {
+  public async create(data: {
+    name: string;
+    email: string;
+    passwordHash: string | null;
+  }): Promise<User> {
     return this.db.user.create({
       data,
     });

@@ -25,3 +25,9 @@ export interface RefreshResult {
 export interface CsrfResult {
   csrfToken: string;
 }
+
+export interface GoogleLoginStartResult {
+  authorizationUrl: string;
+  state: string;
+  codeVerifier: string;
+}

@@ -1,4 +1,4 @@
-import type { RefreshToken } from '../../generated/prisma/client.js';
+import type { OAuthAccount, RefreshToken } from '../../generated/prisma/client.js';
 
 import type { PrismaDatabaseClient } from '../../infrastructure/database/prisma/prisma.types.js';
 
@@ -33,6 +33,30 @@ export class AuthRepository implements IAuthRepository {
       data: {
         revokedAt: new Date(),
       },
+    });
+  }
+
+  public async findOAuthAccount(
+    provider: string,
+    providerAccountId: string,
+  ): Promise<OAuthAccount | null> {
+    return this.db.oAuthAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider,
+          providerAccountId,
+        },
+      },
+    });
+  }
+
+  public async createOAuthAccount(data: {
+    provider: string;
+    providerAccountId: string;
+    userId: string;
+  }): Promise<OAuthAccount> {
+    return this.db.oAuthAccount.create({
+      data,
     });
   }
 }

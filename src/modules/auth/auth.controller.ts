@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import {
   CSRF_TOKEN_COOKIE_NAME,
   CSRF_TOKEN_COOKIE_PATH,
+  OAUTH_COOKIE_NAMES,
   REFRESH_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_COOKIE_PATH,
 } from '../../common/constants/auth.constants.js';
@@ -12,6 +13,8 @@ import { HTTP_STATUS } from '../../common/constants/http.constants.js';
 import type { IAuthService } from './auth.service.js';
 
 import type { LoginCredentials } from './auth.types.js';
+import { ERROR_CODES } from '../../common/errors/error.codes.js';
+import { AppError } from '../../common/errors/app.error.js';
 
 export class AuthController {
   public constructor(
@@ -110,4 +113,67 @@ export class AuthController {
       path: REFRESH_TOKEN_COOKIE_PATH,
     });
   }
+
+  public googleLogin = (_req: Request, res: Response): void => {
+    const result = this.authService.startGoogleLogin();
+
+    res
+      .cookie(OAUTH_COOKIE_NAMES.state, result.state, {
+        httpOnly: true,
+        secure: this.isProduction,
+        sameSite: 'lax',
+        maxAge: 10 * 60 * 1000,
+        path: '/api/v1/auth',
+      })
+      .cookie(OAUTH_COOKIE_NAMES.codeVerifier, result.codeVerifier, {
+        httpOnly: true,
+        secure: this.isProduction,
+        sameSite: 'lax',
+        maxAge: 10 * 60 * 1000,
+        path: '/api/v1/auth',
+      })
+      .redirect(result.authorizationUrl);
+  };
+
+  public googleCallback = async (req: Request, res: Response): Promise<void> => {
+    const code = req.query.code;
+    const state = req.query.state;
+
+    const savedState = req.cookies[OAUTH_COOKIE_NAMES.state];
+
+    const codeVerifier = req.cookies[OAUTH_COOKIE_NAMES.codeVerifier];
+
+    if (
+      typeof code !== 'string' ||
+      typeof state !== 'string' ||
+      typeof savedState !== 'string' ||
+      typeof codeVerifier !== 'string'
+    ) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Invalid OAuth callback.',
+        HTTP_STATUS.UNAUTHORIZED,
+      );
+    }
+
+    if (state !== savedState) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Invalid OAuth state.',
+        HTTP_STATUS.UNAUTHORIZED,
+      );
+    }
+
+    const result = await this.authService.loginWithGoogle(code, codeVerifier);
+
+    res.clearCookie(OAUTH_COOKIE_NAMES.state, {
+      path: '/api/v1/auth',
+    });
+
+    res.clearCookie(OAUTH_COOKIE_NAMES.codeVerifier, {
+      path: '/api/v1/auth',
+    });
+
+    res.json(result);
+  };
 }

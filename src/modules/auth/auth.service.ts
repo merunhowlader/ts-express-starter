@@ -21,12 +21,19 @@ import type { IAuthRepository } from './auth.interface.js';
 import type {
   AuthenticatedUser,
   CsrfResult,
+  GoogleLoginStartResult,
   LoginCredentials,
   LoginResult,
   RefreshResult,
 } from './auth.types.js';
 
 import type { IUserRepository } from '../user/user.interface.js';
+import { IOAuthProvider } from '../../infrastructure/auth/oauth/oauth-provider.interface.js';
+import {
+  generateCodeChallenge,
+  generateCodeVerifier,
+  generateOAuthState,
+} from '../../infrastructure/auth/oauth/oauth.utils.js';
 
 export interface IAuthService {
   login(credentials: LoginCredentials): Promise<LoginResult>;
@@ -36,6 +43,9 @@ export interface IAuthService {
   getCsrfToken(): Promise<CsrfResult>;
 
   logout(refreshToken: string): Promise<void>;
+  startGoogleLogin(): GoogleLoginStartResult;
+
+  loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult>;
 }
 
 export class AuthService implements IAuthService {
@@ -44,12 +54,21 @@ export class AuthService implements IAuthService {
     private readonly authRepository: IAuthRepository,
     private readonly tokenService: ITokenService,
     private readonly refreshTokenExpiresIn: string,
+    private readonly googleOAuthProvider: IOAuthProvider,
   ) {}
 
   public async login(credentials: LoginCredentials): Promise<LoginResult> {
     const user = await this.userRepository.findByEmail(credentials.email);
 
     if (user === null) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Invalid email or password.',
+        HTTP_STATUS.UNAUTHORIZED,
+      );
+    }
+
+    if (user.passwordHash === null) {
       throw new AppError(
         ERROR_CODES.UNAUTHORIZED,
         'Invalid email or password.',
@@ -201,5 +220,83 @@ export class AuthService implements IAuthService {
     }
 
     await this.authRepository.revokeRefreshToken(storedToken.id);
+  }
+  public startGoogleLogin(): GoogleLoginStartResult {
+    const state = generateOAuthState();
+
+    const codeVerifier = generateCodeVerifier();
+
+    const codeChallenge = generateCodeChallenge(codeVerifier);
+
+    const authorizationUrl = this.googleOAuthProvider.getAuthorizationUrl(state, codeChallenge);
+
+    return {
+      authorizationUrl,
+      state,
+      codeVerifier,
+    };
+  }
+  public async loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult> {
+    const profile = await this.googleOAuthProvider.exchangeCode(code, codeVerifier);
+
+    let user = await this.userRepository.findByEmail(profile.email);
+
+    if (user === null) {
+      user = await this.userRepository.create({
+        name: profile.name,
+        email: profile.email,
+        passwordHash: null,
+      });
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new AppError(
+        ERROR_CODES.FORBIDDEN,
+        'User account is not active.',
+        HTTP_STATUS.FORBIDDEN,
+      );
+    }
+
+    const oauthAccount = await this.authRepository.findOAuthAccount('google', profile.providerId);
+
+    if (oauthAccount === null) {
+      await this.authRepository.createOAuthAccount({
+        provider: 'google',
+        providerAccountId: profile.providerId,
+        userId: user.id,
+      });
+    }
+
+    const authenticatedUser: AuthenticatedUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      status: user.status,
+    };
+
+    const accessToken = this.tokenService.generateAccessToken({
+      sub: user.id,
+      role: user.role,
+      type: 'access',
+    });
+
+    const refreshToken = generateRefreshToken();
+
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    const expiresAt = getRefreshTokenExpiry(this.refreshTokenExpiresIn);
+
+    await this.authRepository.createRefreshToken({
+      tokenHash,
+      userId: user.id,
+      expiresAt,
+    });
+
+    return {
+      user: authenticatedUser,
+      accessToken,
+      refreshToken,
+    };
   }
 }

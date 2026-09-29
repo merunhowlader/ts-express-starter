@@ -5,7 +5,7 @@ export interface IUserRepository {
 
   findByEmail(email: string): Promise<User | null>;
 
-  create(data: { name: string; email: string; passwordHash: string }): Promise<User>;
+  create(data: { name: string; email: string; passwordHash: string | null }): Promise<User>;
 
   createProfile(data: {
     userId: string;

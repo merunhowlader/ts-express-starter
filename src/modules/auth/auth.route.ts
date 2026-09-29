@@ -22,5 +22,9 @@ export const createAuthRouter = (authService: IAuthService, isProduction: boolea
 
   router.post('/logout', csrfMiddleware, controller.logout);
 
+  router.get('/google', controller.googleLogin);
+
+  router.get('/google/callback', controller.googleCallback);
+
   return router;
 };
