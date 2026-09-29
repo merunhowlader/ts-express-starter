@@ -2,6 +2,9 @@ import type { Request, Response } from 'express';
 
 import type { CreateUserRequest } from './user.schema.js';
 import type { IUserService } from './user.service.js';
+import { AppError } from '../../common/errors/app.error.js';
+import { ERROR_CODES } from '../../common/errors/error.codes.js';
+import { HTTP_STATUS } from '../../common/constants/http.constants.js';
 
 export class UserController {
   public constructor(private readonly userService: IUserService) {}
@@ -24,26 +27,25 @@ export class UserController {
     }>,
     res: Response,
   ): Promise<void> => {
-    const id = req.params.id;
+    const user = req.user;
 
-    const user = await this.userService.getUserById(id);
-
-    if (user === null) {
-      res.status(404).json({
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: 'User not found.',
-          details: null,
-        },
-      });
-
-      return;
+    if (user === undefined) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Authentication is required.',
+        HTTP_STATUS.UNAUTHORIZED,
+      );
     }
 
-    res.status(200).json({
+    const result = await this.userService.getUserById(req.params.id, user);
+
+    if (result === null) {
+      throw new AppError(ERROR_CODES.NOT_FOUND, 'User not found.', HTTP_STATUS.NOT_FOUND);
+    }
+
+    res.status(HTTP_STATUS.OK).json({
       success: true,
-      data: user,
+      data: result,
     });
   };
 }

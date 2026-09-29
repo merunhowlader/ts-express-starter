@@ -1,11 +1,10 @@
 import type { RequestHandler } from 'express';
 
+import { UserRole } from '../../generated/prisma/client.js';
+
 import { HTTP_STATUS } from '../constants/http.constants.js';
-
 import { AppError } from '../errors/app.error.js';
-
 import { ERROR_CODES } from '../errors/error.codes.js';
-
 import type { ITokenService } from '../interfaces/token.interface.js';
 
 export const createAuthMiddleware = (tokenService: ITokenService): RequestHandler => {
@@ -20,7 +19,6 @@ export const createAuthMiddleware = (tokenService: ITokenService): RequestHandle
           HTTP_STATUS.UNAUTHORIZED,
         ),
       );
-
       return;
     }
 
@@ -34,12 +32,15 @@ export const createAuthMiddleware = (tokenService: ITokenService): RequestHandle
           HTTP_STATUS.UNAUTHORIZED,
         ),
       );
-
       return;
     }
 
     try {
       const payload = tokenService.verifyAccessToken(token);
+
+      if (!isUserRole(payload.role)) {
+        throw new Error('Invalid user role in access token.');
+      }
 
       req.user = {
         id: payload.sub,
@@ -58,3 +59,7 @@ export const createAuthMiddleware = (tokenService: ITokenService): RequestHandle
     }
   };
 };
+
+function isUserRole(role: string): role is UserRole {
+  return Object.values(UserRole).includes(role as UserRole);
+}

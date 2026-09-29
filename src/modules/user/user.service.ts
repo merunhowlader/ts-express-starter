@@ -17,11 +17,12 @@ import type { CreateUserData, UserResponse } from './user.types.js';
 import { hashPassword } from '../../common/utils/password.js';
 
 import { toUserResponse } from './user.mapper.js';
+import { AuthenticatedRequestUser } from '../../common/types/auth.types.js';
 
 export interface IUserService {
   createUser(data: { name: string; email: string; password: string }): Promise<UserResponse>;
 
-  getUserById(id: string): Promise<UserResponse | null>;
+  getUserById(id: string, requester: AuthenticatedRequestUser): Promise<UserResponse | null>;
 }
 
 export class UserService implements IUserService {
@@ -62,7 +63,21 @@ export class UserService implements IUserService {
     });
   }
 
-  public async getUserById(id: string): Promise<UserResponse | null> {
+  public async getUserById(
+    id: string,
+    requester: AuthenticatedRequestUser,
+  ): Promise<UserResponse | null> {
+    const isAdmin = requester.role === 'ADMIN';
+    const isOwner = requester.id === id;
+
+    if (!isAdmin && !isOwner) {
+      throw new AppError(
+        ERROR_CODES.FORBIDDEN,
+        'You do not have permission to access this user.',
+        HTTP_STATUS.FORBIDDEN,
+      );
+    }
+
     const user = await this.userRepository.findById(id);
 
     if (user === null) {

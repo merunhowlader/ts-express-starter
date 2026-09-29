@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import type { RequestHandler } from 'express';
 
+import { requirePermissions } from '../../common/middleware/authorization.middleware.js';
+
 import { validateRequest } from '../../common/middleware/validation.middleware.js';
+
+import { PERMISSIONS } from '../../common/constants/permission.constants.js';
 
 import { createUserSchema, getUserByIdSchema } from './user.schema.js';
 
@@ -19,7 +23,13 @@ export const createUserRouter = (
 
   router.post('/', validateRequest(createUserSchema), controller.createUser);
 
-  router.get('/:id', authMiddleware, validateRequest(getUserByIdSchema), controller.getUserById);
+  router.get(
+    '/:id',
+    authMiddleware,
+    requirePermissions(PERMISSIONS.USER_READ),
+    validateRequest(getUserByIdSchema),
+    controller.getUserById,
+  );
 
   return router;
 };
