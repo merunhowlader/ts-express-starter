@@ -41,4 +41,5 @@ export const authService = new AuthService(
   tokenService,
   config.jwt.refreshExpiresIn,
   googleOAuthProvider,
+  unitOfWork,
 );

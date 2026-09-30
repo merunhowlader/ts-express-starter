@@ -34,6 +34,11 @@ import {
   generateCodeVerifier,
   generateOAuthState,
 } from '../../infrastructure/auth/oauth/oauth.utils.js';
+import type { User } from '../../generated/prisma/client.js';
+import { IUnitOfWork } from '../../common/interfaces/unit-of-work.interface.js';
+import { PrismaDatabaseClient } from '../../infrastructure/database/prisma/prisma.types.js';
+import { UserRepository } from '../user/user.repository.js';
+import { AuthRepository } from './auth.repository.js';
 
 export interface IAuthService {
   login(credentials: LoginCredentials): Promise<LoginResult>;
@@ -44,9 +49,10 @@ export interface IAuthService {
 
   logout(refreshToken: string): Promise<void>;
   startGoogleLogin(): GoogleLoginStartResult;
-
   loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult>;
 }
+
+// loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult>;
 
 export class AuthService implements IAuthService {
   public constructor(
@@ -55,6 +61,7 @@ export class AuthService implements IAuthService {
     private readonly tokenService: ITokenService,
     private readonly refreshTokenExpiresIn: string,
     private readonly googleOAuthProvider: IOAuthProvider,
+    private readonly unitOfWork: IUnitOfWork<PrismaDatabaseClient>,
   ) {}
 
   public async login(credentials: LoginCredentials): Promise<LoginResult> {
@@ -239,14 +246,57 @@ export class AuthService implements IAuthService {
   public async loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult> {
     const profile = await this.googleOAuthProvider.exchangeCode(code, codeVerifier);
 
-    let user = await this.userRepository.findByEmail(profile.email);
+    const existingOAuthAccount = await this.authRepository.findOAuthAccount(
+      'google',
+      profile.providerId,
+    );
 
-    if (user === null) {
-      user = await this.userRepository.create({
-        name: profile.name,
-        email: profile.email,
-        passwordHash: null,
-      });
+    let user: User;
+
+    if (existingOAuthAccount !== null) {
+      const existingUser = await this.userRepository.findById(existingOAuthAccount.userId);
+
+      if (existingUser === null) {
+        throw new AppError(
+          ERROR_CODES.UNAUTHORIZED,
+          'OAuth account is not linked to a valid user.',
+          HTTP_STATUS.UNAUTHORIZED,
+        );
+      }
+
+      user = existingUser;
+    } else {
+      const existingUser = await this.userRepository.findByEmail(profile.email);
+
+      if (existingUser !== null) {
+        await this.authRepository.createOAuthAccount({
+          provider: 'google',
+          providerAccountId: profile.providerId,
+          userId: existingUser.id,
+        });
+
+        user = existingUser;
+      } else {
+        user = await this.unitOfWork.execute(async (transaction) => {
+          const transactionUserRepository = new UserRepository(transaction);
+
+          const transactionAuthRepository = new AuthRepository(transaction);
+
+          const createdUser = await transactionUserRepository.create({
+            name: profile.name,
+            email: profile.email,
+            passwordHash: null,
+          });
+
+          await transactionAuthRepository.createOAuthAccount({
+            provider: 'google',
+            providerAccountId: profile.providerId,
+            userId: createdUser.id,
+          });
+
+          return createdUser;
+        });
+      }
     }
 
     if (user.status !== 'ACTIVE') {
@@ -255,16 +305,6 @@ export class AuthService implements IAuthService {
         'User account is not active.',
         HTTP_STATUS.FORBIDDEN,
       );
-    }
-
-    const oauthAccount = await this.authRepository.findOAuthAccount('google', profile.providerId);
-
-    if (oauthAccount === null) {
-      await this.authRepository.createOAuthAccount({
-        provider: 'google',
-        providerAccountId: profile.providerId,
-        userId: user.id,
-      });
     }
 
     const authenticatedUser: AuthenticatedUser = {

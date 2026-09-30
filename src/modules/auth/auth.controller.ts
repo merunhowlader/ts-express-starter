@@ -117,22 +117,19 @@ export class AuthController {
   public googleLogin = (_req: Request, res: Response): void => {
     const result = this.authService.startGoogleLogin();
 
-    res
-      .cookie(OAUTH_COOKIE_NAMES.state, result.state, {
-        httpOnly: true,
-        secure: this.isProduction,
-        sameSite: 'lax',
-        maxAge: 10 * 60 * 1000,
-        path: '/api/v1/auth',
-      })
-      .cookie(OAUTH_COOKIE_NAMES.codeVerifier, result.codeVerifier, {
-        httpOnly: true,
-        secure: this.isProduction,
-        sameSite: 'lax',
-        maxAge: 10 * 60 * 1000,
-        path: '/api/v1/auth',
-      })
-      .redirect(result.authorizationUrl);
+    const oauthCookieOptions = {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: 'lax' as const,
+      path: '/api/v1/auth',
+      maxAge: 10 * 60 * 1000,
+    };
+
+    res.cookie(OAUTH_COOKIE_NAMES.state, result.state, oauthCookieOptions);
+
+    res.cookie(OAUTH_COOKIE_NAMES.codeVerifier, result.codeVerifier, oauthCookieOptions);
+
+    res.redirect(result.authorizationUrl);
   };
 
   public googleCallback = async (req: Request, res: Response): Promise<void> => {
@@ -173,7 +170,16 @@ export class AuthController {
     res.clearCookie(OAUTH_COOKIE_NAMES.codeVerifier, {
       path: '/api/v1/auth',
     });
+    res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: 'strict',
+      path: REFRESH_TOKEN_COOKIE_PATH,
+    });
 
-    res.json(result);
+    res.json({
+      user: result.user,
+      accessToken: result.accessToken,
+    });
   };
 }
