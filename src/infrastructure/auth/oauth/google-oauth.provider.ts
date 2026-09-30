@@ -1,3 +1,5 @@
+import type { GoogleOidcVerifier } from './google-oidc.verifier.js';
+
 import type { IOAuthProvider, OAuthUserProfile } from './oauth-provider.interface.js';
 
 export class GoogleOAuthProvider implements IOAuthProvider {
@@ -5,18 +7,17 @@ export class GoogleOAuthProvider implements IOAuthProvider {
     private readonly clientId: string,
     private readonly clientSecret: string,
     private readonly redirectUri: string,
+    private readonly googleOidcVerifier: GoogleOidcVerifier,
   ) {}
 
-  public getAuthorizationUrl(
-    state: string,
-    codeChallenge: string,
-  ): string {
+  public getAuthorizationUrl(state: string, codeChallenge: string, nonce: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
       state,
+      nonce,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
     });
@@ -27,56 +28,37 @@ export class GoogleOAuthProvider implements IOAuthProvider {
   public async exchangeCode(
     code: string,
     codeVerifier: string,
+    nonce: string,
   ): Promise<OAuthUserProfile> {
-    const tokenResponse = await fetch(
-      'https://oauth2.googleapis.com/token',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
-          code,
-          code_verifier: codeVerifier,
-          grant_type: 'authorization_code',
-          redirect_uri: this.redirectUri,
-        }),
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-    );
+      body: new URLSearchParams({
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        code,
+        code_verifier: codeVerifier,
+        grant_type: 'authorization_code',
+        redirect_uri: this.redirectUri,
+      }),
+    });
 
     if (!tokenResponse.ok) {
       throw new Error('Failed to exchange Google authorization code.');
     }
 
     const tokenData = (await tokenResponse.json()) as {
-      access_token: string;
+      id_token: string;
     };
 
-    const profileResponse = await fetch(
-      'https://www.googleapis.com/oauth2/v2/userinfo',
-      {
-        headers: {
-          Authorization: `Bearer ${tokenData.access_token}`,
-        },
-      },
-    );
-
-    if (!profileResponse.ok) {
-      throw new Error('Failed to retrieve Google user profile.');
-    }
-
-    const profile = (await profileResponse.json()) as {
-      id: string;
-      email: string;
-      name: string;
-    };
+    const claims = await this.googleOidcVerifier.verify(tokenData.id_token, nonce);
 
     return {
-      providerId: profile.id,
-      email: profile.email,
-      name: profile.name,
+      providerId: claims.sub,
+      email: claims.email,
+      name: claims.name ?? claims.email,
     };
   }
 }

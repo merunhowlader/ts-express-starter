@@ -32,6 +32,7 @@ import { IOAuthProvider } from '../../infrastructure/auth/oauth/oauth-provider.i
 import {
   generateCodeChallenge,
   generateCodeVerifier,
+  generateOAuthNonce,
   generateOAuthState,
 } from '../../infrastructure/auth/oauth/oauth.utils.js';
 import type { User } from '../../generated/prisma/client.js';
@@ -49,7 +50,7 @@ export interface IAuthService {
 
   logout(refreshToken: string): Promise<void>;
   startGoogleLogin(): GoogleLoginStartResult;
-  loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult>;
+  loginWithGoogle(code: string, codeVerifier: string,savedNonce:string): Promise<LoginResult>;
 }
 
 // loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult>;
@@ -235,16 +236,23 @@ export class AuthService implements IAuthService {
 
     const codeChallenge = generateCodeChallenge(codeVerifier);
 
-    const authorizationUrl = this.googleOAuthProvider.getAuthorizationUrl(state, codeChallenge);
+    const nonce = generateOAuthNonce();
+
+    const authorizationUrl = this.googleOAuthProvider.getAuthorizationUrl(
+      state,
+      codeChallenge,
+      nonce,
+    );
 
     return {
       authorizationUrl,
       state,
       codeVerifier,
+      nonce,
     };
   }
-  public async loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult> {
-    const profile = await this.googleOAuthProvider.exchangeCode(code, codeVerifier);
+  public async loginWithGoogle(code: string, codeVerifier: string,savedNonce: string,): Promise<LoginResult> {
+    const profile = await this.googleOAuthProvider.exchangeCode(code, codeVerifier,savedNonce);
 
     const existingOAuthAccount = await this.authRepository.findOAuthAccount(
       'google',

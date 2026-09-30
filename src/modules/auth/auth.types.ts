@@ -30,4 +30,5 @@ export interface GoogleLoginStartResult {
   authorizationUrl: string;
   state: string;
   codeVerifier: string;
+  nonce: string;
 }

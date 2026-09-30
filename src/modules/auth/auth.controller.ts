@@ -128,7 +128,7 @@ export class AuthController {
     res.cookie(OAUTH_COOKIE_NAMES.state, result.state, oauthCookieOptions);
 
     res.cookie(OAUTH_COOKIE_NAMES.codeVerifier, result.codeVerifier, oauthCookieOptions);
-
+    res.cookie(OAUTH_COOKIE_NAMES.nonce, result.nonce, oauthCookieOptions);
     res.redirect(result.authorizationUrl);
   };
 
@@ -140,11 +140,14 @@ export class AuthController {
 
     const codeVerifier = req.cookies[OAUTH_COOKIE_NAMES.codeVerifier];
 
+    const savedNonce = req.cookies[OAUTH_COOKIE_NAMES.nonce];
+
     if (
       typeof code !== 'string' ||
       typeof state !== 'string' ||
       typeof savedState !== 'string' ||
-      typeof codeVerifier !== 'string'
+      typeof codeVerifier !== 'string' ||
+      typeof savedNonce !== 'string'
     ) {
       throw new AppError(
         ERROR_CODES.UNAUTHORIZED,
@@ -161,7 +164,7 @@ export class AuthController {
       );
     }
 
-    const result = await this.authService.loginWithGoogle(code, codeVerifier);
+    const result = await this.authService.loginWithGoogle(code, codeVerifier, savedNonce);
 
     res.clearCookie(OAUTH_COOKIE_NAMES.state, {
       path: '/api/v1/auth',
@@ -170,10 +173,15 @@ export class AuthController {
     res.clearCookie(OAUTH_COOKIE_NAMES.codeVerifier, {
       path: '/api/v1/auth',
     });
+
+    res.clearCookie(OAUTH_COOKIE_NAMES.nonce, {
+      path: '/api/v1/auth',
+    });
+
     res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
       httpOnly: true,
       secure: this.isProduction,
-      sameSite: 'strict',
+      // keep your existing sameSite policy
       path: REFRESH_TOKEN_COOKIE_PATH,
     });
 
