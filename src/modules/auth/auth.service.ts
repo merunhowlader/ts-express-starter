@@ -40,6 +40,7 @@ import { IUnitOfWork } from '../../common/interfaces/unit-of-work.interface.js';
 import { PrismaDatabaseClient } from '../../infrastructure/database/prisma/prisma.types.js';
 import { UserRepository } from '../user/user.repository.js';
 import { AuthRepository } from './auth.repository.js';
+import { OAuthStateStore } from '../../infrastructure/auth/oauth/oauth-state.store.js';
 
 export interface IAuthService {
   login(credentials: LoginCredentials): Promise<LoginResult>;
@@ -49,8 +50,8 @@ export interface IAuthService {
   getCsrfToken(): Promise<CsrfResult>;
 
   logout(refreshToken: string): Promise<void>;
-  startGoogleLogin(): GoogleLoginStartResult;
-  loginWithGoogle(code: string, codeVerifier: string,savedNonce:string): Promise<LoginResult>;
+  startGoogleLogin(): Promise<GoogleLoginStartResult>;
+  loginWithGoogle(code: string, state: string): Promise<LoginResult>;
 }
 
 // loginWithGoogle(code: string, codeVerifier: string): Promise<LoginResult>;
@@ -63,6 +64,7 @@ export class AuthService implements IAuthService {
     private readonly refreshTokenExpiresIn: string,
     private readonly googleOAuthProvider: IOAuthProvider,
     private readonly unitOfWork: IUnitOfWork<PrismaDatabaseClient>,
+    private readonly oauthStateStore: OAuthStateStore,
   ) {}
 
   public async login(credentials: LoginCredentials): Promise<LoginResult> {
@@ -229,7 +231,7 @@ export class AuthService implements IAuthService {
 
     await this.authRepository.revokeRefreshToken(storedToken.id);
   }
-  public startGoogleLogin(): GoogleLoginStartResult {
+  public async startGoogleLogin(): Promise<GoogleLoginStartResult> {
     const state = generateOAuthState();
 
     const codeVerifier = generateCodeVerifier();
@@ -237,6 +239,15 @@ export class AuthService implements IAuthService {
     const codeChallenge = generateCodeChallenge(codeVerifier);
 
     const nonce = generateOAuthNonce();
+
+    await this.oauthStateStore.save(
+      state,
+      {
+        codeVerifier,
+        nonce,
+      },
+      10 * 60,
+    );
 
     const authorizationUrl = this.googleOAuthProvider.getAuthorizationUrl(
       state,
@@ -246,13 +257,24 @@ export class AuthService implements IAuthService {
 
     return {
       authorizationUrl,
-      state,
-      codeVerifier,
-      nonce,
     };
   }
-  public async loginWithGoogle(code: string, codeVerifier: string,savedNonce: string,): Promise<LoginResult> {
-    const profile = await this.googleOAuthProvider.exchangeCode(code, codeVerifier,savedNonce);
+  public async loginWithGoogle(code: string, state: string): Promise<LoginResult> {
+    const oauthState = await this.oauthStateStore.consume(state);
+
+    if (oauthState === null) {
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Invalid or expired OAuth state.',
+        HTTP_STATUS.UNAUTHORIZED,
+      );
+    }
+
+    const profile = await this.googleOAuthProvider.exchangeCode(
+      code,
+      oauthState.codeVerifier,
+      oauthState.nonce,
+    );
 
     const existingOAuthAccount = await this.authRepository.findOAuthAccount(
       'google',

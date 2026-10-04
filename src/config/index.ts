@@ -1,4 +1,5 @@
 import { loadEnvConfig } from './env.config.js';
+import { createRedisConfig } from './redis.config.js';
 
 export type AppConfig = {
   nodeEnv: ReturnType<typeof loadEnvConfig>['NODE_ENV'];
@@ -13,6 +14,9 @@ export type AppConfig = {
     clientId: string;
     clientSecret: string;
     redirectUri: string;
+  };
+  redis: {
+    url: string;
   };
 };
 
@@ -33,5 +37,6 @@ export function loadConfig(): AppConfig {
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       redirectUri: env.GOOGLE_REDIRECT_URI,
     },
+    redis: createRedisConfig(env.REDIS_URL),
   };
 }

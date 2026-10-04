@@ -15,7 +15,9 @@ import { UserRepository } from '../modules/user/user.repository.js';
 import { UserService } from '../modules/user/user.service.js';
 import { GoogleOAuthProvider } from '../infrastructure/auth/oauth/google-oauth.provider.js';
 import { GoogleOidcVerifier } from '../infrastructure/auth/oauth/google-oidc.verifier.js';
-
+import { createRedisClient } from '../infrastructure/cache/redis.client.js';
+import { RedisService } from '../infrastructure/cache/redis.service.js';
+import { OAuthStateStore } from '../infrastructure/auth/oauth/oauth-state.store.js';
 const config = loadConfig();
 
 export const isProduction = config.nodeEnv === 'production';
@@ -28,6 +30,14 @@ const unitOfWork = new PrismaUnitOfWork(prisma);
 
 const tokenService = new JwtTokenService(config.jwt.accessSecret, config.jwt.accessExpiresIn);
 
+export const redisClient = createRedisClient(config.redis.url);
+
+
+
+export const redisService = new RedisService(redisClient);
+
+export const oauthStateStore = new OAuthStateStore(redisService);
+
 export const authMiddleware: RequestHandler = createAuthMiddleware(tokenService);
 
 export const userService = new UserService(userRepository, unitOfWork);
@@ -39,6 +49,7 @@ export const googleOAuthProvider = new GoogleOAuthProvider(
   config.google.redirectUri,
   googleOidcVerifier,
 );
+
 export const authService = new AuthService(
   userRepository,
   authRepository,
@@ -46,4 +57,5 @@ export const authService = new AuthService(
   config.jwt.refreshExpiresIn,
   googleOAuthProvider,
   unitOfWork,
+  oauthStateStore,
 );

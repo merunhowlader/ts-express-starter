@@ -3,7 +3,6 @@ import type { Request, Response } from 'express';
 import {
   CSRF_TOKEN_COOKIE_NAME,
   CSRF_TOKEN_COOKIE_PATH,
-  OAUTH_COOKIE_NAMES,
   REFRESH_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_COOKIE_PATH,
 } from '../../common/constants/auth.constants.js';
@@ -114,21 +113,21 @@ export class AuthController {
     });
   }
 
-  public googleLogin = (_req: Request, res: Response): void => {
-    const result = this.authService.startGoogleLogin();
+  public googleLogin = async (_req: Request, res: Response): Promise<void> => {
+    const result = await this.authService.startGoogleLogin();
 
-    const oauthCookieOptions = {
-      httpOnly: true,
-      secure: this.isProduction,
-      sameSite: 'lax' as const,
-      path: '/api/v1/auth',
-      maxAge: 10 * 60 * 1000,
-    };
+    // const oauthCookieOptions = {
+    //   httpOnly: true,
+    //   secure: this.isProduction,
+    //   sameSite: 'lax' as const,
+    //   path: '/api/v1/auth',
+    //   maxAge: 10 * 60 * 1000,
+    // };
 
-    res.cookie(OAUTH_COOKIE_NAMES.state, result.state, oauthCookieOptions);
+    // res.cookie(OAUTH_COOKIE_NAMES.state, result.state, oauthCookieOptions);
 
-    res.cookie(OAUTH_COOKIE_NAMES.codeVerifier, result.codeVerifier, oauthCookieOptions);
-    res.cookie(OAUTH_COOKIE_NAMES.nonce, result.nonce, oauthCookieOptions);
+    // res.cookie(OAUTH_COOKIE_NAMES.codeVerifier, result.codeVerifier, oauthCookieOptions);
+    // res.cookie(OAUTH_COOKIE_NAMES.nonce, result.nonce, oauthCookieOptions);
     res.redirect(result.authorizationUrl);
   };
 
@@ -136,19 +135,7 @@ export class AuthController {
     const code = req.query.code;
     const state = req.query.state;
 
-    const savedState = req.cookies[OAUTH_COOKIE_NAMES.state];
-
-    const codeVerifier = req.cookies[OAUTH_COOKIE_NAMES.codeVerifier];
-
-    const savedNonce = req.cookies[OAUTH_COOKIE_NAMES.nonce];
-
-    if (
-      typeof code !== 'string' ||
-      typeof state !== 'string' ||
-      typeof savedState !== 'string' ||
-      typeof codeVerifier !== 'string' ||
-      typeof savedNonce !== 'string'
-    ) {
+    if (typeof code !== 'string' || typeof state !== 'string') {
       throw new AppError(
         ERROR_CODES.UNAUTHORIZED,
         'Invalid OAuth callback.',
@@ -156,32 +143,12 @@ export class AuthController {
       );
     }
 
-    if (state !== savedState) {
-      throw new AppError(
-        ERROR_CODES.UNAUTHORIZED,
-        'Invalid OAuth state.',
-        HTTP_STATUS.UNAUTHORIZED,
-      );
-    }
-
-    const result = await this.authService.loginWithGoogle(code, codeVerifier, savedNonce);
-
-    res.clearCookie(OAUTH_COOKIE_NAMES.state, {
-      path: '/api/v1/auth',
-    });
-
-    res.clearCookie(OAUTH_COOKIE_NAMES.codeVerifier, {
-      path: '/api/v1/auth',
-    });
-
-    res.clearCookie(OAUTH_COOKIE_NAMES.nonce, {
-      path: '/api/v1/auth',
-    });
+    const result = await this.authService.loginWithGoogle(code, state);
 
     res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
       httpOnly: true,
       secure: this.isProduction,
-      // keep your existing sameSite policy
+      sameSite: 'lax',
       path: REFRESH_TOKEN_COOKIE_PATH,
     });
 
@@ -189,5 +156,31 @@ export class AuthController {
       user: result.user,
       accessToken: result.accessToken,
     });
+
+    // const savedState = req.cookies[OAUTH_COOKIE_NAMES.state];
+
+    // const codeVerifier = req.cookies[OAUTH_COOKIE_NAMES.codeVerifier];
+
+    // const savedNonce = req.cookies[OAUTH_COOKIE_NAMES.nonce];
+
+    // if (state !== savedState) {
+    //   throw new AppError(
+    //     ERROR_CODES.UNAUTHORIZED,
+    //     'Invalid OAuth state.',
+    //     HTTP_STATUS.UNAUTHORIZED,
+    //   );
+    // }
+
+    // res.clearCookie(OAUTH_COOKIE_NAMES.state, {
+    //   path: '/api/v1/auth',
+    // });
+
+    // res.clearCookie(OAUTH_COOKIE_NAMES.codeVerifier, {
+    //   path: '/api/v1/auth',
+    // });
+
+    // res.clearCookie(OAUTH_COOKIE_NAMES.nonce, {
+    //   path: '/api/v1/auth',
+    // });
   };
 }
