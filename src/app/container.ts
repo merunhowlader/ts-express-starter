@@ -18,6 +18,7 @@ import { GoogleOidcVerifier } from '../infrastructure/auth/oauth/google-oidc.ver
 import { createRedisClient } from '../infrastructure/cache/redis.client.js';
 import { RedisService } from '../infrastructure/cache/redis.service.js';
 import { OAuthStateStore } from '../infrastructure/auth/oauth/oauth-state.store.js';
+import { logger } from '../infrastructure/logger/logger.js';
 const config = loadConfig();
 
 export const isProduction = config.nodeEnv === 'production';
@@ -31,8 +32,6 @@ const unitOfWork = new PrismaUnitOfWork(prisma);
 const tokenService = new JwtTokenService(config.jwt.accessSecret, config.jwt.accessExpiresIn);
 
 export const redisClient = createRedisClient(config.redis.url);
-
-
 
 export const redisService = new RedisService(redisClient);
 
@@ -59,3 +58,4 @@ export const authService = new AuthService(
   unitOfWork,
   oauthStateStore,
 );
+export { logger };

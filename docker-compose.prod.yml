@@ -1,0 +1,87 @@
+services:
+  app:
+    image: node-express-ts-starter:latest
+    container_name: node-express-ts-starter-app
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+
+      CORS_ORIGINS: ${CORS_ORIGINS}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+
+    ports:
+      - '3000:3000'
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    networks:
+      - app_network
+
+  postgres:
+    image: postgres:17
+    container_name: node-express-ts-starter-postgres-prod
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - app_network
+
+  redis:
+    image: redis:8-alpine
+    container_name: node-express-ts-starter-redis-prod
+    restart: unless-stopped
+
+    volumes:
+      - redis_prod_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+
+    command: redis-server /usr/local/etc/redis/redis.conf
+
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - app_network
+
+networks:
+  app_network:
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:

@@ -2,7 +2,7 @@ import { createServer } from './server.js';
 import { loadConfig } from './config/index.js';
 import { prisma } from './infrastructure/database/prisma/prisma.client.js';
 import { redisClient } from './app/container.js';
-
+import { logger } from './infrastructure/logger/logger.js';
 const env = loadConfig();
 
 const server = createServer();
@@ -11,38 +11,24 @@ const startServer = async (): Promise<void> => {
   try {
     await prisma.$connect();
 
-    console.log(
-      'Database connected successfully',
-    );
+    logger.info('Database connected successfully');
 
-    server.listen(env.port, () => {
-      console.log(
-        `Server is running on port ${env.port} in ${env.nodeEnv} mode`,
-      );
+    server.listen(env.port, '0.0.0.0', () => {
+      logger.info(`Server is running on port ${env.port} in ${env.nodeEnv} mode`);
     });
 
     try {
       await redisClient.connect();
 
-      console.log(
-        'Redis connected successfully',
-      );
+      logger.info('Redis connected successfully');
     } catch (error: unknown) {
-      console.warn(
-        'Redis is unavailable. Application will continue without Redis:',
-        error,
-      );
+      logger.error('Redis is unavailable. Application will continue without Redis:', error);
     }
   } catch (error: unknown) {
-    console.error(
-      'Failed to start application:',
-      error,
-    );
+    logger.error('Failed to start application:', error);
 
     if (redisClient.isOpen) {
-      await redisClient.quit().catch(
-        () => undefined,
-      );
+      await redisClient.quit().catch(() => undefined);
     }
 
     await prisma.$disconnect();
@@ -58,22 +44,22 @@ function shutdown(signal: string): void {
 
   isShuttingDown = true;
 
-  console.log(`${signal} received. Shutting down gracefully...`);
+  logger.info(`${signal} received. Shutting down gracefully...`);
 
   server.close(() => {
-    console.log('HTTP server closed.');
+    logger.info('HTTP server closed.');
 
     void Promise.all([
       prisma.$disconnect(),
       redisClient.isOpen ? redisClient.quit() : Promise.resolve(),
     ])
       .then(() => {
-        console.log('Database and Redis connections closed.');
+        logger.info('Database and Redis connections closed.');
 
         process.exit(0);
       })
       .catch((error: unknown) => {
-        console.error('Error during shutdown:', error);
+        logger.error('Error during shutdown:', error);
 
         process.exit(1);
       });

@@ -2,12 +2,19 @@ import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 
 import { HTTP_STATUS } from '../constants/http.constants.js';
+import { logger } from '../../infrastructure/logger/logger.js';
 
 import { AppError } from './app.error.js';
 import { ERROR_CODES } from './error.codes.js';
 import type { ErrorResponse } from './error.types.js';
 
-export const errorHandler: ErrorRequestHandler = (error, _req, res, _next): void => {
+export const errorHandler: ErrorRequestHandler = (error, req, res, _next): void => {
+  logger.error('Request failed', error, {
+    requestId: req.requestId,
+    method: req.method,
+    url: req.originalUrl,
+  });
+
   if (error instanceof AppError) {
     const response: ErrorResponse = {
       success: false,
@@ -15,6 +22,9 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next): void
         code: error.code,
         message: error.message,
         details: error.details,
+      },
+      meta: {
+        requestId: req.requestId,
       },
     };
 
@@ -31,6 +41,9 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next): void
         message: 'Validation failed.',
         details: error.issues,
       },
+      meta: {
+        requestId: req.requestId,
+      },
     };
 
     res.status(HTTP_STATUS.UNPROCESSABLE_CONTENT).json(response);
@@ -44,6 +57,9 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next): void
       code: ERROR_CODES.INTERNAL_SERVER_ERROR,
       message: 'Internal server error.',
       details: null,
+    },
+    meta: {
+      requestId: req.requestId,
     },
   };
 

@@ -18,6 +18,15 @@ const envSchema = z.object({
   GOOGLE_REDIRECT_URI: z.string().min(1),
 
   REDIS_URL: z.string().min(1),
+  CORS_ORIGINS: z
+    .string()
+    .min(1)
+    .transform((value) =>
+      value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
 });
 
 export function loadEnvConfig() {

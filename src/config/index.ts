@@ -18,6 +18,7 @@ export type AppConfig = {
   redis: {
     url: string;
   };
+  corsOrigins: ReturnType<typeof loadEnvConfig>['CORS_ORIGINS'];
 };
 
 export function loadConfig(): AppConfig {
@@ -38,5 +39,6 @@ export function loadConfig(): AppConfig {
       redirectUri: env.GOOGLE_REDIRECT_URI,
     },
     redis: createRedisConfig(env.REDIS_URL),
+    corsOrigins: env.CORS_ORIGINS,
   };
 }

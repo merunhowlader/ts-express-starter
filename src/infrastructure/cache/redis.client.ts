@@ -1,5 +1,7 @@
 import { createClient, type RedisClientType } from 'redis';
 
+import { logger } from '../logger/logger.js';
+
 export type RedisClient = RedisClientType;
 
 export function createRedisClient(url: string): RedisClient {
@@ -16,7 +18,7 @@ export function createRedisClient(url: string): RedisClient {
   });
 
   client.on('error', (error) => {
-    console.error('Redis client error:', error);
+    logger.error('Redis client error', error);
   });
 
   return client;

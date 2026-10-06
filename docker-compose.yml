@@ -15,6 +15,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app_user -d app_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:8-alpine
     container_name: node-express-ts-starter-redis
@@ -28,6 +34,12 @@ services:
       - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
 
     command: redis-server /usr/local/etc/redis/redis.conf
+
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
