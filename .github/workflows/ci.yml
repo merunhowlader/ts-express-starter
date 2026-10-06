@@ -73,7 +73,18 @@ jobs:
       - name: Test
         run: pnpm test
         env:
+          NODE_ENV: test
+          PORT: 3000
+          DATABASE_URL: postgresql://app_user:app_password@localhost:5432/app_db_test
           DATABASE_URL_TEST: postgresql://app_user:app_password@localhost:5432/app_db_test
+          JWT_ACCESS_SECRET: ci-test-access-secret
+          JWT_ACCESS_EXPIRES_IN: 15m
+          JWT_REFRESH_EXPIRES_IN: 7d
+          GOOGLE_CLIENT_ID: ci-test-google-client-id
+          GOOGLE_CLIENT_SECRET: ci-test-google-client-secret
+          GOOGLE_REDIRECT_URI: http://localhost:3000/api/v1/auth/google/callback
+          REDIS_URL: redis://localhost:6379
+          CORS_ORIGINS: http://localhost:5173
 
       - name: Build
         run: pnpm build
