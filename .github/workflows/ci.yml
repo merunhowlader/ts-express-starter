@@ -56,6 +56,8 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm exec prisma generate
+        env:
+          DATABASE_URL: postgresql://app_user:app_password@localhost:5432/app_db_test
 
       - name: Run database migrations
         run: pnpm exec prisma migrate deploy
