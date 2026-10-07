@@ -17,7 +17,6 @@ import { GoogleOAuthProvider } from '../infrastructure/auth/oauth/google-oauth.p
 import { GoogleOidcVerifier } from '../infrastructure/auth/oauth/google-oidc.verifier.js';
 import { createRedisClient } from '../infrastructure/cache/redis.client.js';
 import { RedisService } from '../infrastructure/cache/redis.service.js';
-import { OAuthStateStore } from '../infrastructure/auth/oauth/oauth-state.store.js';
 import { logger } from '../infrastructure/logger/logger.js';
 const config = loadConfig();
 
@@ -34,8 +33,6 @@ const tokenService = new JwtTokenService(config.jwt.accessSecret, config.jwt.acc
 export const redisClient = createRedisClient(config.redis.url);
 
 export const redisService = new RedisService(redisClient);
-
-export const oauthStateStore = new OAuthStateStore(redisService);
 
 export const authMiddleware: RequestHandler = createAuthMiddleware(tokenService);
 
@@ -56,6 +53,5 @@ export const authService = new AuthService(
   config.jwt.refreshExpiresIn,
   googleOAuthProvider,
   unitOfWork,
-  oauthStateStore,
 );
 export { logger };

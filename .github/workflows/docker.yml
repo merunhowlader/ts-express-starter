@@ -9,10 +9,13 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   docker:
-    name: Build Docker Image
-
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
 
     steps:
@@ -22,12 +25,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        if: github.event_name == 'push'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/merunhowlader/ts-express-starter
+          tags: |
+            type=sha
+            type=raw,value=latest
+
       - name: Build Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
-          push: false
-          tags: node-express-ts-starter:test
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

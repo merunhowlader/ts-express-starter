@@ -3,6 +3,11 @@ import type { Request, Response } from 'express';
 import {
   CSRF_TOKEN_COOKIE_NAME,
   CSRF_TOKEN_COOKIE_PATH,
+  OAUTH_CODE_VERIFIER_COOKIE_NAME,
+  OAUTH_COOKIE_MAX_AGE,
+  OAUTH_COOKIE_PATH,
+  OAUTH_NONCE_COOKIE_NAME,
+  OAUTH_STATE_COOKIE_NAME,
   REFRESH_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_COOKIE_PATH,
 } from '../../common/constants/auth.constants.js';
@@ -112,22 +117,38 @@ export class AuthController {
       path: REFRESH_TOKEN_COOKIE_PATH,
     });
   }
+  private clearOAuthCookies(res: Response): void {
+    const cookieOptions = {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: 'lax' as const,
+      path: OAUTH_COOKIE_PATH,
+    };
+
+    res.clearCookie(OAUTH_STATE_COOKIE_NAME, cookieOptions);
+
+    res.clearCookie(OAUTH_CODE_VERIFIER_COOKIE_NAME, cookieOptions);
+
+    res.clearCookie(OAUTH_NONCE_COOKIE_NAME, cookieOptions);
+  }
 
   public googleLogin = async (_req: Request, res: Response): Promise<void> => {
     const result = await this.authService.startGoogleLogin();
 
-    // const oauthCookieOptions = {
-    //   httpOnly: true,
-    //   secure: this.isProduction,
-    //   sameSite: 'lax' as const,
-    //   path: '/api/v1/auth',
-    //   maxAge: 10 * 60 * 1000,
-    // };
+    const oauthCookieOptions = {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: 'lax' as const,
+      path: OAUTH_COOKIE_PATH,
+      maxAge: OAUTH_COOKIE_MAX_AGE,
+    };
 
-    // res.cookie(OAUTH_COOKIE_NAMES.state, result.state, oauthCookieOptions);
+    res.cookie(OAUTH_STATE_COOKIE_NAME, result.state, oauthCookieOptions);
 
-    // res.cookie(OAUTH_COOKIE_NAMES.codeVerifier, result.codeVerifier, oauthCookieOptions);
-    // res.cookie(OAUTH_COOKIE_NAMES.nonce, result.nonce, oauthCookieOptions);
+    res.cookie(OAUTH_CODE_VERIFIER_COOKIE_NAME, result.codeVerifier, oauthCookieOptions);
+
+    res.cookie(OAUTH_NONCE_COOKIE_NAME, result.nonce, oauthCookieOptions);
+
     res.redirect(result.authorizationUrl);
   };
 
@@ -143,44 +164,44 @@ export class AuthController {
       );
     }
 
-    const result = await this.authService.loginWithGoogle(code, state);
+    const savedState = req.cookies[OAUTH_STATE_COOKIE_NAME];
 
-    res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, {
-      httpOnly: true,
-      secure: this.isProduction,
-      sameSite: 'lax',
-      path: REFRESH_TOKEN_COOKIE_PATH,
+    const codeVerifier = req.cookies[OAUTH_CODE_VERIFIER_COOKIE_NAME];
+
+    const nonce = req.cookies[OAUTH_NONCE_COOKIE_NAME];
+
+    if (typeof savedState !== 'string' || state !== savedState) {
+      this.clearOAuthCookies(res);
+
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'Invalid OAuth state.',
+        HTTP_STATUS.UNAUTHORIZED,
+      );
+    }
+
+    if (typeof codeVerifier !== 'string' || typeof nonce !== 'string') {
+      this.clearOAuthCookies(res);
+
+      throw new AppError(
+        ERROR_CODES.UNAUTHORIZED,
+        'OAuth session has expired or is invalid.',
+        HTTP_STATUS.UNAUTHORIZED,
+      );
+    }
+
+    const result = await this.authService.loginWithGoogle(code, codeVerifier, nonce);
+
+    this.clearOAuthCookies(res);
+
+    this.setRefreshTokenCookie(res, result.refreshToken);
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      data: {
+        user: result.user,
+        accessToken: result.accessToken,
+      },
     });
-
-    res.json({
-      user: result.user,
-      accessToken: result.accessToken,
-    });
-
-    // const savedState = req.cookies[OAUTH_COOKIE_NAMES.state];
-
-    // const codeVerifier = req.cookies[OAUTH_COOKIE_NAMES.codeVerifier];
-
-    // const savedNonce = req.cookies[OAUTH_COOKIE_NAMES.nonce];
-
-    // if (state !== savedState) {
-    //   throw new AppError(
-    //     ERROR_CODES.UNAUTHORIZED,
-    //     'Invalid OAuth state.',
-    //     HTTP_STATUS.UNAUTHORIZED,
-    //   );
-    // }
-
-    // res.clearCookie(OAUTH_COOKIE_NAMES.state, {
-    //   path: '/api/v1/auth',
-    // });
-
-    // res.clearCookie(OAUTH_COOKIE_NAMES.codeVerifier, {
-    //   path: '/api/v1/auth',
-    // });
-
-    // res.clearCookie(OAUTH_COOKIE_NAMES.nonce, {
-    //   path: '/api/v1/auth',
-    // });
   };
 }
